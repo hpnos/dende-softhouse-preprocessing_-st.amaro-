@@ -7,57 +7,63 @@ class MissingValueProcessor:
         self.dataset = dataset
 
     def _get_target_columns(self, columns: Set[str]) -> List[str]:
-        if columns:
+        if columns is not None:
             return list(columns)
         return list(self.dataset.keys())
 
     def isna(self, columns: Set[str] = None) -> Dict[str, List[Any]]:
         target_columns = self._get_target_columns(columns)
         all_columns = list(self.dataset.keys())
-        result_dataset = {col: [] for col in all_columns}
+        result_dataset = {}
+        for col in all_columns:
+            result_dataset[col] = []
         
         if not all_columns:
             return result_dataset
 
         row_count = len(self.dataset[all_columns[0]])
 
+        invalid_rows = set()
+
         for row_index in range(row_count):
-            has_null = False
             for col in target_columns:
                 if self.dataset[col][row_index] is None:
-                    has_null = True
-            
-            if has_null:
-                for col in all_columns:
-                    result_dataset[col].append(self.dataset[col][row_index])
-                    
+                    invalid_rows.add(row_index)
+
+        for row_index in invalid_rows:
+            for col_all in all_columns:
+                result_dataset[col_all].append(self.dataset[col_all][row_index])
+                
         return result_dataset
 
-    def notna(self, columns: Set[str] = None) -> Dict[str, List[Any]]:
+    def isna(self, columns: Set[str] = None) -> Dict[str, List[Any]]:
         target_columns = self._get_target_columns(columns)
         all_columns = list(self.dataset.keys())
-        result_dataset = {col: [] for col in all_columns}
+        result_dataset = {}
+        for col in all_columns:
+            result_dataset[col] = []
         
         if not all_columns:
             return result_dataset
 
         row_count = len(self.dataset[all_columns[0]])
 
+        invalid_rows = set()
+
         for row_index in range(row_count):
-            is_valid = True
             for col in target_columns:
                 if self.dataset[col][row_index] is None:
-                    is_valid = False
-            
-            if is_valid:
-                for col in all_columns:
-                    result_dataset[col].append(self.dataset[col][row_index])
-                    
+                    invalid_rows.add(row_index)
+
+        for row_index in invalid_rows:
+            for col_all in all_columns:
+                result_dataset[col_all].append(self.dataset[col_all][row_index])
+                
         return result_dataset
 
     def fillna(self, columns: Set[str] = None, value: Any = 0) -> Dict[str, List[Any]]:
         target_columns = self._get_target_columns(columns)
-        
+
         if not self.dataset:
             return self.dataset
             
@@ -88,8 +94,10 @@ class MissingValueProcessor:
                     is_valid = False
             if is_valid:
                 valid_indices.append(row_index)
-
-        new_dataset = {col: [] for col in all_columns}
+        
+        new_dataset = {}
+        for col in all_columns:
+            new_dataset[col] = []
         
         for row_index in valid_indices:
             for col in all_columns:
@@ -99,6 +107,7 @@ class MissingValueProcessor:
             self.dataset[col] = new_dataset[col]
 
         return self.dataset
+
 
 class Scaler:
 
@@ -120,7 +129,11 @@ class Scaler:
         row_count = len(self.dataset[all_columns[0]])
 
         for col in target_columns:
-            valid_values = [val for val in self.dataset[col] if val is not None]
+            
+            valid_values = []
+            for val in self.dataset[col]:
+                if val is not None:
+                    valid_values.append(val)            
             
             if not valid_values:
                 continue
@@ -143,28 +156,36 @@ class Scaler:
 
     def standard_scaler(self, columns: Set[str] = None) -> Dict[str, List[Any]]:
         target_columns = self._get_target_columns(columns)
-        
+
         if not self.dataset:
             return self.dataset
-            
+
         all_columns = list(self.dataset.keys())
         row_count = len(self.dataset[all_columns[0]])
 
+        stats = Statistics(self.dataset)
+
         for col in target_columns:
-            valid_values = [val for val in self.dataset[col] if val is not None]
-            
+
+            valid_values = []
+            for val in self.dataset[col]:
+                if val is not None:
+                    valid_values.append(val)
+
             if not valid_values:
                 continue
-                
-            mean_val = sum(valid_values) / len(valid_values)
-            variance_val = sum((x - mean_val) ** 2 for x in valid_values) / len(valid_values)
-            stdev_val = variance_val ** 0.5
+
+            mean_val = stats.mean(col)
+            stdev_val = stats.stdev(col)
+
+            if stdev_val is None:
+                continue
 
             if stdev_val != 0:
                 for row_index in range(row_count):
                     if self.dataset[col][row_index] is not None:
-                        current_val = self.dataset[col][row_index]
-                        self.dataset[col][row_index] = (current_val - mean_val) / stdev_val
+                        val = self.dataset[col][row_index]
+                        self.dataset[col][row_index] = (val - mean_val) / stdev_val
             else:
                 for row_index in range(row_count):
                     if self.dataset[col][row_index] is not None:
@@ -182,50 +203,51 @@ class Encoder:
             return self.dataset
 
         for col in columns:
+
             unique_values = []
             for val in self.dataset[col]:
                 if val not in unique_values:
                     unique_values.append(val)
 
-            unique_str_representation = [str(x) for x in unique_values]
-            combined_lists = list(zip(unique_str_representation, unique_values))
-            combined_lists.sort(key=lambda item: item[0])
-            sorted_unique_values = [item[1] for item in combined_lists]
+            unique_values.sort(key=str)
 
             mapping = {}
-            current_label = 0
-            for val in sorted_unique_values:
-                mapping[val] = current_label
-                current_label += 1
+            index = 0
+            for val in unique_values:
+                mapping[val] = index
+                index += 1
 
-            row_count = len(self.dataset[col])
-            for row_index in range(row_count):
-                current_val = self.dataset[col][row_index]
-                self.dataset[col][row_index] = mapping[current_val]
+            for i in range(len(self.dataset[col])):
+                current_val = self.dataset[col][i]
+                self.dataset[col][i] = mapping[current_val]
 
         return self.dataset
-
-    def oneHot_encode(self, columns: Set[str]) -> Dict[str, List[Any]]:
+    
+    def one_hot_encode(self, columns: Set[str]) -> Dict[str, List[Any]]:
         if not self.dataset:
             return self.dataset
 
-        all_columns = list(self.dataset.keys())
-        row_count = len(self.dataset[all_columns[0]])
-
         for col in columns:
+
             unique_values = []
             for val in self.dataset[col]:
                 if val not in unique_values:
                     unique_values.append(val)
 
-            for unique_val in unique_values:
-                new_col_name = f"{col}_{unique_val}"
-                self.dataset[new_col_name] = [0] * row_count
+            for val in unique_values:
+                new_col_name = col + "_" + str(val)
+                self.dataset[new_col_name] = []
 
-            for row_index in range(row_count):
-                current_val = self.dataset[col][row_index]
-                target_col_name = f"{col}_{current_val}"
-                self.dataset[target_col_name][row_index] = 1
+            for i in range(len(self.dataset[col])):
+                current_val = self.dataset[col][i]
+
+                for val in unique_values:
+                    new_col_name = col + "_" + str(val)
+
+                    if current_val == val:
+                        self.dataset[new_col_name].append(1)
+                    else:
+                        self.dataset[new_col_name].append(0)
 
             del self.dataset[col]
 
@@ -278,6 +300,6 @@ class Preprocessing:
         if method == 'label':
             return self.encoder.label_encode(columns)
         elif method == 'oneHot':
-            return self.encoder.oneHot_encode(columns)
+            return self.encoder.one_hot_encode(columns)
         else:
             raise ValueError("Method not supported")
