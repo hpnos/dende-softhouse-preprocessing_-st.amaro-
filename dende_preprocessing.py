@@ -10,6 +10,17 @@ class MissingValueProcessor:
         if columns is not None:
             return list(columns)
         return list(self.dataset.keys())
+    
+    def _is_missing(self, value):
+        if value is None:
+            return True
+
+        if isinstance(value, str):
+            value = value.strip().lower()
+            if value in {"", "n/a", "na", "null", "none"}:
+                return True
+
+        return False
 
     def isna(self, columns: Set[str] = None) -> Dict[str, List[Any]]:
         target_columns = self._get_target_columns(columns)
@@ -23,22 +34,23 @@ class MissingValueProcessor:
 
         row_count = len(self.dataset[all_columns[0]])
 
-        invalid_rows = set()
-
         for row_index in range(row_count):
-            for col in target_columns:
-                if self.dataset[col][row_index] is None:
-                    invalid_rows.add(row_index)
+            has_missing = False
 
-        for row_index in invalid_rows:
-            for col_all in all_columns:
-                result_dataset[col_all].append(self.dataset[col_all][row_index])
-                
+            for col in target_columns:
+                if self._is_missing(self.dataset[col][row_index]):
+                    has_missing = True
+
+            if has_missing:
+                for col_all in all_columns:
+                    result_dataset[col_all].append(self.dataset[col_all][row_index])
+
         return result_dataset
 
-    def isna(self, columns: Set[str] = None) -> Dict[str, List[Any]]:
+    def notna(self, columns: Set[str] = None) -> Dict[str, List[Any]]:
         target_columns = self._get_target_columns(columns)
         all_columns = list(self.dataset.keys())
+        
         result_dataset = {}
         for col in all_columns:
             result_dataset[col] = []
@@ -48,17 +60,17 @@ class MissingValueProcessor:
 
         row_count = len(self.dataset[all_columns[0]])
 
-        invalid_rows = set()
-
         for row_index in range(row_count):
-            for col in target_columns:
-                if self.dataset[col][row_index] is None:
-                    invalid_rows.add(row_index)
+            has_missing = False
 
-        for row_index in invalid_rows:
-            for col_all in all_columns:
-                result_dataset[col_all].append(self.dataset[col_all][row_index])
-                
+            for col in target_columns:
+                if self._is_missing(self.dataset[col][row_index]):
+                    has_missing = True
+
+            if not has_missing:
+                for col_all in all_columns:
+                    result_dataset[col_all].append(self.dataset[col_all][row_index])
+
         return result_dataset
 
     def fillna(self, columns: Set[str] = None, value: Any = 0) -> Dict[str, List[Any]]:
@@ -72,7 +84,7 @@ class MissingValueProcessor:
 
         for col in target_columns:
             for row_index in range(row_count):
-                if self.dataset[col][row_index] is None:
+                if self._is_missing(self.dataset[col][row_index]):
                     self.dataset[col][row_index] = value
                     
         return self.dataset
@@ -90,7 +102,7 @@ class MissingValueProcessor:
         for row_index in range(row_count):
             is_valid = True
             for col in target_columns:
-                if self.dataset[col][row_index] is None:
+                if self._is_missing(self.dataset[col][row_index]):
                     is_valid = False
             if is_valid:
                 valid_indices.append(row_index)
@@ -163,10 +175,7 @@ class Scaler:
         all_columns = list(self.dataset.keys())
         row_count = len(self.dataset[all_columns[0]])
 
-        stats = Statistics(self.dataset)
-
         for col in target_columns:
-
             valid_values = []
             for val in self.dataset[col]:
                 if val is not None:
@@ -174,6 +183,8 @@ class Scaler:
 
             if not valid_values:
                 continue
+
+            stats = Statistics({col: valid_values})
 
             mean_val = stats.mean(col)
             stdev_val = stats.stdev(col)
