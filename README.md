@@ -60,3 +60,21 @@ pipeline.scale(columns={"preco_ingresso", "avaliacao"}, method='minMax')
 dataset_final = pipeline.encode(columns={"categoria"}, method='oneHot')
 
 print(dataset_final)
+```
+
+## 🧑‍🤝‍🧑 Identificação da Equipe  
+> ⚠️ **Esta seção deve ser obrigatoriamente preenchida pelos estudantes**
+
+### Nome do Grupo: [ST.AMARO]
+
+
+### Integrantes da Equipe
+
+Bruno Sampaio Silva
+
+Levi Falcão de Queiroz
+
+Moisés de Souza Oliveira
+
+Raphael dos Santos Moreira
+
