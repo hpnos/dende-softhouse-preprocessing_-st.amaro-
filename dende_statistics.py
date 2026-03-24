@@ -355,4 +355,3 @@ class Statistics:
             histograma[intervalo] += 1
 
         return histograma
-    pass
